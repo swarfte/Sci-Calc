@@ -76,6 +76,14 @@ UninstallDisplayIcon={app}\{#MyAppExeName}
 
 SetupLogging=yes
 
+; 安裝時以 Windows Restart Manager 自動關閉正在執行的本程式，
+; 不再顯示「是否關閉應用程式」詢問頁；安裝完成後由 [Run] 的
+; postinstall 啟動項目重新開啟新版。
+; （RestartApplications 預設為 yes，但本程式沒有呼叫
+; RegisterApplicationRestart，因此 Restart Manager 不會另外重啟，
+; 不會與 postinstall 產生重複啟動。）
+CloseApplications=force
+
 [Files]
 Source: "{#BuildDir}\*"; \
     DestDir: "{app}"; \
