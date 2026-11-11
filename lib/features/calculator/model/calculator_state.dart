@@ -13,7 +13,6 @@ class CalculatorState {
     this.result,
     this.angleMode = AngleMode.degree,
     this.errorMessage,
-    this.hasEvaluated = false,
     this.answer = 0,
   });
 
@@ -28,9 +27,6 @@ class CalculatorState {
   /// 計算錯誤訊息；只在按 `=` 後出現於 ResultDisplay，繼續輸入後清除。
   final String? errorMessage;
 
-  /// 是否已按 `=` 完成計算（用於決定游標是否顯示）。
-  final bool hasEvaluated;
-
   /// 上一個答案，供 `Ans` 常數使用；首次啟動預設為 `0`。
   final double answer;
 
@@ -43,7 +39,6 @@ class CalculatorState {
     CalculationResult? result,
     AngleMode? angleMode,
     String? errorMessage,
-    bool? hasEvaluated,
     double? answer,
     bool clearResult = false,
     bool clearError = false,
@@ -53,7 +48,6 @@ class CalculatorState {
       result: clearResult ? null : result ?? this.result,
       angleMode: angleMode ?? this.angleMode,
       errorMessage: clearError ? null : errorMessage ?? this.errorMessage,
-      hasEvaluated: hasEvaluated ?? this.hasEvaluated,
       answer: answer ?? this.answer,
     );
   }

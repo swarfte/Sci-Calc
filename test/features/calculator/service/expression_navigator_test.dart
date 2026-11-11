@@ -102,7 +102,7 @@ void main() {
   });
 
   group('flat sequence node boundaries', () {
-    test('|2+3 向右進入 number 2 文字開頭', () {
+    test('|2+3 向右 -> 2|+3（單字符 number 折疊為後方間隙）', () {
       final n2 = NumberNode.create('2');
       final op = OperatorNode.create(ExpressionOperator.add);
       final n3 = NumberNode.create('3');
@@ -112,38 +112,31 @@ void main() {
         cursor: CursorPosition(sequenceId: root.id, nodeOffset: 0),
       );
 
-      // |[2]+[3] -> 向右遇到 NumberNode 2，進入文字開頭（text mode）。
+      // |[2]+[3] -> 單字符 2 的 text 1 與後方間隙視覺相同，折疊為間隙。
       final moved = navigator.moveRight(doc);
       expect(moved.cursor.sequenceId, root.id);
-      expect(moved.cursor.nodeOffset, 0);
-      expect(moved.cursor.textOffset, 0);
+      expect(moved.cursor.nodeOffset, 1);
+      expect(moved.cursor.textOffset, isNull);
     });
 
-    test('number 末端向右跨越 operator 進入下一個 number 文字開頭', () {
+    test('2|+3 向右跨越 operator 至 3 前方間隙，再向右至末端', () {
       final n2 = NumberNode.create('2');
       final op = OperatorNode.create(ExpressionOperator.add);
       final n3 = NumberNode.create('3');
       final root = SequenceNode(id: NodeId.generate(), children: [n2, op, n3]);
       final doc = TreeExpressionDocument(
         root: root,
-        cursor: CursorPosition(
-          sequenceId: root.id,
-          nodeOffset: 0,
-          textOffset: 1, // 2| (number 末端)
-        ),
+        cursor: CursorPosition(sequenceId: root.id, nodeOffset: 1),
       );
 
-      final step1 = navigator.moveRight(doc); // -> 離開 number 至後方間隙 (operator 前)
-      expect(step1.cursor.nodeOffset, 1);
+      final step1 = navigator.moveRight(doc); // -> operator 為 leaf，跨越至後方間隙
+      expect(step1.cursor.nodeOffset, 2);
       expect(step1.cursor.textOffset, isNull);
 
-      final step2 = navigator.moveRight(step1); // -> operator 為 leaf，跨越至後方間隙
-      expect(step2.cursor.nodeOffset, 2);
+      // 單字符 3：text 1 折疊為後方間隙（2+3|）。
+      final step2 = navigator.moveRight(step1);
+      expect(step2.cursor.nodeOffset, 3);
       expect(step2.cursor.textOffset, isNull);
-
-      final step3 = navigator.moveRight(step2); // -> 進入 number 3 文字開頭
-      expect(step3.cursor.nodeOffset, 2);
-      expect(step3.cursor.textOffset, 0);
     });
   });
 
@@ -242,6 +235,8 @@ void main() {
 
       final moved = navigator.moveLeft(doc);
 
+      // composite node 進入最後 child sequence 末端 gap：
+      // 游標由括號外（log₁₀(100)|）移到括號內（log₁₀(100|)），可見移動。
       expect(moved.cursor.sequenceId, argument.id);
       expect(moved.cursor.nodeOffset, 1); // argument 末端
     });
@@ -733,6 +728,90 @@ void main() {
     });
   });
 
+  // 視覺唯一性回歸：99×66 的每個可視游標位置（|99×66、9|9×66、99|×66、
+  // 99×|66、99×6|6、99×66|）都必須對應唯一 cursor state。曾經 gap 與 number
+  // 文字開頭／末端各自存一份，方向鍵會落在視覺相同的隱形步上，造成
+  // 「按一下沒反應、要按兩下」。規範化後每按一次必產生可見移動。
+  group('visible step per press（99×66 全程走訪）', () {
+    late SequenceNode root;
+    late TreeExpressionDocument endDoc;
+
+    setUp(() {
+      final n99 = NumberNode.create('99');
+      final op = OperatorNode.create(ExpressionOperator.multiply);
+      final n66 = NumberNode.create('66');
+      root = SequenceNode(id: NodeId.generate(), children: [n99, op, n66]);
+      endDoc = TreeExpressionDocument(
+        root: root,
+        cursor: CursorPosition(sequenceId: root.id, nodeOffset: 3),
+      );
+    });
+
+    test('由末端連按向左：每按一次視覺位置都改變，且依序抵達每個可視位置', () {
+      final expected = [
+        (nodeOffset: 2, textOffset: 1), // 99×6|6
+        (nodeOffset: 2, textOffset: null), // 99×|66
+        (nodeOffset: 1, textOffset: null), // 99|×66
+        (nodeOffset: 0, textOffset: 1), // 9|9×66
+        (nodeOffset: 0, textOffset: null), // |99×66
+      ];
+
+      var doc = endDoc;
+      var previous = doc.cursor;
+      for (final position in expected) {
+        doc = navigator.moveLeft(doc);
+        expect(doc.cursor.nodeOffset, position.nodeOffset);
+        expect(doc.cursor.textOffset, position.textOffset);
+        // 每按一次，cursor state 必須改變（規範化後 state 與視覺一一對應）。
+        expect(doc.cursor, isNot(equals(previous)));
+        previous = doc.cursor;
+      }
+
+      // 已在開頭：再按向左為邊界 no-op。
+      final stuck = navigator.moveLeft(doc);
+      expect(stuck.cursor, doc.cursor);
+    });
+
+    test('由開頭連按向右：每按一次視覺位置都改變，且依序抵達每個可視位置', () {
+      final start = TreeExpressionDocument(
+        root: root,
+        cursor: CursorPosition(sequenceId: root.id, nodeOffset: 0),
+      );
+      final expected = [
+        (nodeOffset: 0, textOffset: 1), // 9|9×66
+        (nodeOffset: 1, textOffset: null), // 99|×66
+        (nodeOffset: 2, textOffset: null), // 99×|66
+        (nodeOffset: 2, textOffset: 1), // 99×6|6
+        (nodeOffset: 3, textOffset: null), // 99×66|
+      ];
+
+      var doc = start;
+      var previous = doc.cursor;
+      for (final position in expected) {
+        doc = navigator.moveRight(doc);
+        expect(doc.cursor.nodeOffset, position.nodeOffset);
+        expect(doc.cursor.textOffset, position.textOffset);
+        expect(doc.cursor, isNot(equals(previous)));
+        previous = doc.cursor;
+      }
+
+      // 已在末端：再按向右為邊界 no-op。
+      final stuck = navigator.moveRight(doc);
+      expect(stuck.cursor, doc.cursor);
+    });
+
+    test('向左再向右往返，游標狀態可逆', () {
+      var doc = navigator.moveLeft(endDoc); // 99×6|6
+      doc = navigator.moveLeft(doc); // 99×|66
+      doc = navigator.moveRight(doc); // 回 99×6|6
+      expect(doc.cursor.nodeOffset, 2);
+      expect(doc.cursor.textOffset, 1);
+      doc = navigator.moveRight(doc); // 回 99×66|
+      expect(doc.cursor.nodeOffset, 3);
+      expect(doc.cursor.textOffset, isNull);
+    });
+  });
+
   group('invalid cursor recovery', () {
     test('未知 sequenceId clamp 至 root 結尾後保持穩定', () {
       final root = SequenceNode(
@@ -761,12 +840,13 @@ void main() {
         cursor: CursorPosition(sequenceId: root.id, nodeOffset: 50),
       );
 
-      // nodeOffset 50 clamp 至 1（root 末端）；向左遇到 number，進入其末端。
+      // nodeOffset 50 clamp 至 1（root 末端）；向左遇到單字符 number，
+      // text 0 折疊為前方間隙（|1，與 1| 視覺不同、可見移動）。
       final moved = navigator.moveLeft(doc);
 
       expect(moved.cursor.sequenceId, root.id);
       expect(moved.cursor.nodeOffset, 0);
-      expect(moved.cursor.textOffset, 1);
+      expect(moved.cursor.textOffset, isNull);
     });
   });
 }

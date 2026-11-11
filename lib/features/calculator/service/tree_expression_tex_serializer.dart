@@ -28,22 +28,16 @@ class TreeExpressionTexSerializer {
 
   /// 序列化整份 document，回傳 visible / hidden 兩個等寬 TeX 版本。
   ///
-  /// [cursorVisible] 控制 [TexSerializationResult.withVisibleCursor] 是否真的
-  /// 帶有 visible cursor marker。`withHiddenCursor` 永遠使用 hidden marker，
-  /// 用於閃爍動畫的「游標熄滅」帧。當 [cursorVisible] 為 `false` 時（例如已按
-  /// 下 `=`），兩個版本都使用 hidden marker，使游標完全不顯示。
-  TexSerializationResult serialize(
-    TreeExpressionDocument document, {
-    bool cursorVisible = true,
-  }) {
+  /// `withVisibleCursor` 帶有 visible cursor marker，`withHiddenCursor` 永遠
+  /// 使用 hidden marker。兩者由顯示層隨閃爍動畫交替（「游標熄滅」帧使用
+  /// hidden 版本，確保版面不位移）。
+  TexSerializationResult serialize(TreeExpressionDocument document) {
     final placeholderTex = _serializeDocument(document);
-
-    final visibleMarker = cursorVisible ? _kVisibleCursor : _kHiddenCursor;
 
     return TexSerializationResult(
       withVisibleCursor: placeholderTex.replaceAll(
         _kCursorPlaceholder,
-        visibleMarker,
+        _kVisibleCursor,
       ),
       withHiddenCursor: placeholderTex.replaceAll(
         _kCursorPlaceholder,
@@ -396,12 +390,17 @@ class TreeExpressionTexSerializer {
       // 同上：\pi 需以空格與後方字母 token 分隔。
       MathConstant.pi => r'\pi ',
       MathConstant.e => 'e',
-      MathConstant.answer => r'\operatorname{Ans}',
+      // \mathrm 而非 \operatorname：\operatorname 是 greedy function，會把
+      // 緊接在後的 function token（如 hidden cursor marker \phantom{\vert}，
+      // greediness 預設 1）視為自己的 argument 並拋出 ParseException，導致
+      // 游標位於 Ans 後時閃爍失效帧、按 `=` 後整條算式消失。\mathrm 只吃
+      // 自帶的 {Ans} 群組，不會吞後方 token，且同樣以直立體呈現。
+      MathConstant.answer => r'\mathrm{Ans}',
     };
   }
 
   // visible / hidden cursor 的 placeholder。serialize 時先寫入 placeholder，
-  // 最後依 cursorVisible 替換成實際 marker，確保兩個版本結構完全一致。
+  // 最後分別替換成實際 marker，確保兩個版本結構完全一致。
   static const String _kCursorPlaceholder = '\uE000'; // private-use char
 
   static const String _kVisibleCursor = r'\vert';

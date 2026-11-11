@@ -164,7 +164,6 @@ void main() {
       press(character: '+');
       press(character: '3');
       press(character: '=');
-      expect(viewModel().state.hasEvaluated, isTrue);
       expect(viewModel().state.result?.value, 5);
     });
 
@@ -173,7 +172,7 @@ void main() {
       press(character: '+');
       press(character: '3');
       press(logicalKey: LogicalKeyboardKey.enter);
-      expect(viewModel().state.hasEvaluated, isTrue);
+      expect(viewModel().state.result?.value, 5);
     });
 
     test('Backspace 觸發 backspace', () {

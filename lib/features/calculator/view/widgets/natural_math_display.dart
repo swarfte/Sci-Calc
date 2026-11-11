@@ -4,23 +4,22 @@ import 'package:flutter_math_fork/flutter_math.dart';
 /// 算式自然顯示區。
 ///
 /// 職責（Phase 6 後）：
-/// - 在 visible / hidden TeX 間切換以產生閃爍游標。
+/// - 在 visible / hidden TeX 間切換以產生閃爍游標（恆常閃爍，按 `=` 後
+///   亦持續顯示，指示下一個輸入位置）。
 /// - 維持等寬 cursor layout（TeX 由 Tree Serializer 保證等寬）。
 /// - 水平捲動。
-/// - Renderer 失敗時顯示安全 fallback（空白或游標），不顯示錯誤訊息。
+/// - Renderer 失敗時顯示安全 fallback（僅游標），不顯示錯誤訊息。
 ///
 /// 不管理 cursor location，也不依賴 evaluationExpression。
 class NaturalMathDisplay extends StatefulWidget {
   const NaturalMathDisplay({
     required this.tex,
     required this.texWithCursor,
-    required this.showCursor,
     super.key,
   });
 
   final String tex;
   final String texWithCursor;
-  final bool showCursor;
 
   @override
   State<NaturalMathDisplay> createState() => _NaturalMathDisplayState();
@@ -61,10 +60,7 @@ class _NaturalMathDisplayState extends State<NaturalMathDisplay>
         child: AnimatedBuilder(
           animation: _cursorController,
           builder: (context, child) {
-            final cursorIsVisible =
-                widget.showCursor && _cursorController.value < 0.5;
-
-            final currentTex = cursorIsVisible
+            final currentTex = _cursorController.value < 0.5
                 ? widget.texWithCursor
                 : widget.tex;
 
@@ -75,10 +71,10 @@ class _NaturalMathDisplayState extends State<NaturalMathDisplay>
                 fontSize: MediaQuery.sizeOf(context).width < 400 ? 28 : 36,
                 color: textColor,
               ),
-              // Renderer 失敗時顯示安全 fallback：僅游標或空白，不顯示錯誤。
+              // Renderer 失敗時顯示安全 fallback：僅游標，不顯示錯誤。
               onErrorFallback: (_) {
                 return Text(
-                  widget.showCursor ? '|' : '',
+                  '|',
                   style: TextStyle(fontSize: 28, color: textColor),
                 );
               },
