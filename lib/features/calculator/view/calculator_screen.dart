@@ -24,11 +24,8 @@ class CalculatorScreen extends ConsumerWidget {
     final serializer = ref.watch(treeExpressionTexSerializerProvider);
     final resultFormat = ref.watch(resultFormatSettingsProvider);
 
-    // TeX 完全由 Tree Serializer 產生；按 `=` 後游標不顯示。
-    final texResult = serializer.serialize(
-      state.document,
-      cursorVisible: !state.hasEvaluated,
-    );
+    // TeX 完全由 Tree Serializer 產生；游標恆常閃爍，指示下一個輸入位置。
+    final texResult = serializer.serialize(state.document);
 
     // 釘選 (always-on-top) 只在桌面平台提供。
     final isDesktop = ref.watch(isDesktopPlatformProvider);
@@ -79,7 +76,6 @@ class CalculatorScreen extends ConsumerWidget {
                           NaturalMathDisplay(
                             tex: texResult.withHiddenCursor,
                             texWithCursor: texResult.withVisibleCursor,
-                            showCursor: !state.hasEvaluated,
                           ),
                           const Divider(height: 1),
                           ResultDisplay(

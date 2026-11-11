@@ -28,22 +28,16 @@ class TreeExpressionTexSerializer {
 
   /// 序列化整份 document，回傳 visible / hidden 兩個等寬 TeX 版本。
   ///
-  /// [cursorVisible] 控制 [TexSerializationResult.withVisibleCursor] 是否真的
-  /// 帶有 visible cursor marker。`withHiddenCursor` 永遠使用 hidden marker，
-  /// 用於閃爍動畫的「游標熄滅」帧。當 [cursorVisible] 為 `false` 時（例如已按
-  /// 下 `=`），兩個版本都使用 hidden marker，使游標完全不顯示。
-  TexSerializationResult serialize(
-    TreeExpressionDocument document, {
-    bool cursorVisible = true,
-  }) {
+  /// `withVisibleCursor` 帶有 visible cursor marker，`withHiddenCursor` 永遠
+  /// 使用 hidden marker。兩者由顯示層隨閃爍動畫交替（「游標熄滅」帧使用
+  /// hidden 版本，確保版面不位移）。
+  TexSerializationResult serialize(TreeExpressionDocument document) {
     final placeholderTex = _serializeDocument(document);
-
-    final visibleMarker = cursorVisible ? _kVisibleCursor : _kHiddenCursor;
 
     return TexSerializationResult(
       withVisibleCursor: placeholderTex.replaceAll(
         _kCursorPlaceholder,
-        visibleMarker,
+        _kVisibleCursor,
       ),
       withHiddenCursor: placeholderTex.replaceAll(
         _kCursorPlaceholder,
@@ -406,7 +400,7 @@ class TreeExpressionTexSerializer {
   }
 
   // visible / hidden cursor 的 placeholder。serialize 時先寫入 placeholder，
-  // 最後依 cursorVisible 替換成實際 marker，確保兩個版本結構完全一致。
+  // 最後分別替換成實際 marker，確保兩個版本結構完全一致。
   static const String _kCursorPlaceholder = '\uE000'; // private-use char
 
   static const String _kVisibleCursor = r'\vert';

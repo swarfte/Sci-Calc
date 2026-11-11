@@ -29,18 +29,19 @@ void main() {
 
       expect(state().document.root.children.length, 1);
       expect((state().document.root.children.first as NumberNode).value, '123');
-      expect(state().hasEvaluated, isFalse);
     });
 
-    test('計算後繼續輸入清除 hasEvaluated', () {
+    test('計算後繼續輸入保留算式並清除結果', () {
       viewModel().inputDigit('1');
       viewModel().inputAdd();
       viewModel().inputDigit('2');
       viewModel().calculate();
-      expect(state().hasEvaluated, isTrue);
+      expect(state().result, isNotNull);
 
+      // 繼續輸入：算式在原處延伸，舊結果清除。
       viewModel().inputDigit('3');
-      expect(state().hasEvaluated, isFalse);
+      expect(state().document.root.children.length, 3);
+      expect(state().result, isNull);
     });
   });
 
@@ -91,7 +92,6 @@ void main() {
       expect(state().result, isNotNull);
       expect(state().result!.value, 5);
       expect(state().result!.formattedValue, '5');
-      expect(state().hasEvaluated, isTrue);
       expect(state().answer, 5.0);
       expect(state().errorMessage, isNull);
     });
@@ -104,7 +104,6 @@ void main() {
 
       expect(state().errorMessage, isNotNull);
       expect(state().result, isNull);
-      expect(state().hasEvaluated, isFalse);
     });
 
     test('計算失敗後繼續輸入清除 error', () {

@@ -20,7 +20,7 @@ import 'package:scientific_calculator/features/calculator/service/tree_expressio
 void main() {
   const serializer = TreeExpressionTexSerializer();
 
-  /// 便利：取得 visible 版的 TeX（cursorVisible 預設 true）。
+  /// 便利：取得 visible 版的 TeX。
   String visibleTex(TreeExpressionDocument doc) =>
       serializer.serialize(doc).withVisibleCursor;
 
@@ -475,19 +475,22 @@ void main() {
       expect(result.withHiddenCursor, r'\phantom{\vert}\phantom{0}');
     });
 
-    test('cursorVisible=false 時 visible 與 hidden 版完全相同（均用 hidden marker）', () {
+    test(r'hidden 版不應出現未被包在 \phantom 內的獨立 \vert', () {
       final number = NumberNode.create('5');
       final root = SequenceNode(id: NodeId.generate(), children: [number]);
       final doc = TreeExpressionDocument(
         root: root,
-        cursor: CursorPosition(sequenceId: root.id, nodeOffset: 0),
+        cursor: CursorPosition(sequenceId: root.id, nodeOffset: 1),
       );
-      final result = serializer.serialize(doc, cursorVisible: false);
-      // cursorVisible=false 時兩版本都使用 hidden marker，游標完全不顯示。
-      expect(result.withVisibleCursor, equals(result.withHiddenCursor));
-      expect(result.withVisibleCursor, contains(r'\phantom{\vert}'));
-      // 不應出現未被包在 \phantom 內的獨立 \vert（例如末尾 \vert5）。
-      expect(result.withVisibleCursor, isNot(endsWith(r'\vert')));
+      final result = serializer.serialize(doc);
+      expect(result.withHiddenCursor, contains(r'\phantom{\vert}'));
+      // 移除所有 \phantom{\vert} 後不應殘留任何 \vert
+      //（即每個 \vert 都被包在 \phantom 內，例如不該出現末尾 \vert5）。
+      final stripped = result.withHiddenCursor.replaceAll(
+        r'\phantom{\vert}',
+        '',
+      );
+      expect(stripped, isNot(contains(r'\vert')));
     });
   });
 }

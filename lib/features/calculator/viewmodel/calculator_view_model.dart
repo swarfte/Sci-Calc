@@ -223,13 +223,11 @@ class CalculatorViewModel extends Notifier<CalculatorState> {
       state = state.copyWith(
         result: result,
         answer: result.value.toDouble(),
-        hasEvaluated: true,
         clearError: true,
       );
     } on CalculatorException catch (error) {
       state = state.copyWith(
         errorMessage: error.message,
-        hasEvaluated: false,
         clearResult: true,
       );
     }
@@ -275,7 +273,6 @@ class CalculatorViewModel extends Notifier<CalculatorState> {
     final nextDocument = action(state.document);
     state = state.copyWith(
       document: nextDocument,
-      hasEvaluated: false,
       clearResult: !preserveResult,
       clearError: true,
     );

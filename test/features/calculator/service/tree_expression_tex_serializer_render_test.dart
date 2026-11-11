@@ -15,8 +15,7 @@ import 'package:scientific_calculator/features/calculator/service/tree_expressio
 /// 回歸背景：`Ans` 曾以 `\operatorname{Ans}` 序列化，其 greedy argument
 /// parsing 會把緊接在後的 function token（hidden cursor marker
 /// `\phantom{\vert}`）誤當成自己的 argument 並拋出 ParseException：
-/// - 閃爍的「游標熄滅」帧落入 onErrorFallback，輸入欄不斷閃跳。
-/// - 按 `=` 後（cursorVisible=false，兩版本均帶 hidden marker）整條算式消失。
+/// 閃爍的「游標熄滅」帧落入 onErrorFallback，輸入欄不斷閃跳。
 void main() {
   const serializer = TreeExpressionTexSerializer();
 
@@ -63,18 +62,6 @@ void main() {
         isTrue);
     expect(await rendersWithoutFallback(tester, result.withHiddenCursor),
         isTrue);
-  });
-
-  testWidgets('游標在 Ans 後、按 = 後（cursorVisible=false）：算式仍可渲染',
-      (tester) async {
-    final result = serializer.serialize(
-      docWithCursorAfterAns(cursorIndex: 5),
-      cursorVisible: false,
-    );
-    expect(
-      await rendersWithoutFallback(tester, result.withHiddenCursor),
-      isTrue,
-    );
   });
 
   testWidgets('游標在 Ans 前：visible / hidden 兩幀皆可渲染', (tester) async {
