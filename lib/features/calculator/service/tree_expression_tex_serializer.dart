@@ -396,7 +396,12 @@ class TreeExpressionTexSerializer {
       // 同上：\pi 需以空格與後方字母 token 分隔。
       MathConstant.pi => r'\pi ',
       MathConstant.e => 'e',
-      MathConstant.answer => r'\operatorname{Ans}',
+      // \mathrm 而非 \operatorname：\operatorname 是 greedy function，會把
+      // 緊接在後的 function token（如 hidden cursor marker \phantom{\vert}，
+      // greediness 預設 1）視為自己的 argument 並拋出 ParseException，導致
+      // 游標位於 Ans 後時閃爍失效帧、按 `=` 後整條算式消失。\mathrm 只吃
+      // 自帶的 {Ans} 群組，不會吞後方 token，且同樣以直立體呈現。
+      MathConstant.answer => r'\mathrm{Ans}',
     };
   }
 

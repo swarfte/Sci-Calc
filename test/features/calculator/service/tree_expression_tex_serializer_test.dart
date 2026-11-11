@@ -120,7 +120,35 @@ void main() {
       final tex = hiddenTex(doc);
       // \pi 與 e 必須為相異 token（不黏成 \pie）。
       expect(tex, contains(r'\pi e'));
-      expect(tex, contains(r'\operatorname{Ans}'));
+      expect(tex, contains(r'\mathrm{Ans}'));
+    });
+
+    test(r'游標緊接 Ans 後：hidden marker 不被 \operatorname 吞掉（回歸）', () {
+      // 回歸背景：\operatorname{Ans} 後直接跟 \phantom{\vert}（hidden cursor
+      // marker）時，\operatorname 的 greedy argument parsing 會拋出
+      // ParseException，導致閃爍 fallback、按 = 後算式消失。改用 \mathrm 後，
+      // 兩個 cursor 版本都必須保持 \mathrm{Ans} 完整、且後方 marker 不變形。
+      final root = SequenceNode(
+        id: NodeId.generate(),
+        children: [
+          NumberNode.create('44'),
+          OperatorNode.create(ExpressionOperator.add),
+          NumberNode.create('1'),
+          OperatorNode.create(ExpressionOperator.add),
+          ConstantNode.create(MathConstant.answer),
+        ],
+      );
+      final doc = TreeExpressionDocument(
+        root: root,
+        cursor: CursorPosition(sequenceId: root.id, nodeOffset: 5),
+      );
+
+      final result = serializer.serialize(doc);
+      expect(result.withVisibleCursor, contains(r'\mathrm{Ans}\vert'));
+      expect(result.withHiddenCursor, contains(r'\mathrm{Ans}\phantom{\vert}'));
+      // 不應再出現會吞掉後方 function token 的 \operatorname 形式。
+      expect(result.withVisibleCursor, isNot(contains(r'\operatorname')));
+      expect(result.withHiddenCursor, isNot(contains(r'\operatorname')));
     });
   });
 
