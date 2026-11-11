@@ -22,32 +22,79 @@ import '../model/expression/tree_index.dart';
 /// * **Text mode**（`textOffset != null`）：游標位於 NumberNode
 ///   `sequence.children[nodeOffset]` 內，字元位置 `textOffset ∈ [0, value.length]`。
 ///
+/// ## 視覺唯一性（canonical cursor）
+///
+/// text `0` 與該 NumberNode 前方間隙、text `len` 與後方間隙的渲染結果完全
+/// 相同（隱形步）。Navigator 移動前後都以 [_normalize] 將 text 0 / 末端折疊
+/// 為 gap mode，並在進入 NumberNode 時落在嚴格內部的字元間（見
+/// `_enterNodeFromLeft` / `_enterNodeFromRight`）。如此每個合法 cursor 都對
+/// 唯一視覺位置，單次方向鍵必產生可見移動，不會出現「按一下沒反應」。
+///
 /// 遇到無效 cursor（例如 sequenceId 已不存在）時，會安全回復至 root 結尾。
 class ExpressionNavigator {
   const ExpressionNavigator();
 
   TreeExpressionDocument moveLeft(TreeExpressionDocument document) {
     final index = TreeIndex(document.root);
-    final cursor = index.clampCursor(document.cursor);
-    return document.copyWith(cursor: _moveLeft(index, cursor));
+    final cursor = _normalize(index, index.clampCursor(document.cursor));
+    return document.copyWith(cursor: _normalize(index, _moveLeft(index, cursor)));
   }
 
   TreeExpressionDocument moveRight(TreeExpressionDocument document) {
     final index = TreeIndex(document.root);
-    final cursor = index.clampCursor(document.cursor);
-    return document.copyWith(cursor: _moveRight(index, cursor));
+    final cursor = _normalize(index, index.clampCursor(document.cursor));
+    return document.copyWith(
+      cursor: _normalize(index, _moveRight(index, cursor)),
+    );
   }
 
   TreeExpressionDocument moveUp(TreeExpressionDocument document) {
     final index = TreeIndex(document.root);
-    final cursor = index.clampCursor(document.cursor);
-    return document.copyWith(cursor: _moveVertical(index, cursor, up: true));
+    final cursor = _normalize(index, index.clampCursor(document.cursor));
+    return document.copyWith(
+      cursor: _normalize(index, _moveVertical(index, cursor, up: true)),
+    );
   }
 
   TreeExpressionDocument moveDown(TreeExpressionDocument document) {
     final index = TreeIndex(document.root);
-    final cursor = index.clampCursor(document.cursor);
-    return document.copyWith(cursor: _moveVertical(index, cursor, up: false));
+    final cursor = _normalize(index, index.clampCursor(document.cursor));
+    return document.copyWith(
+      cursor: _normalize(index, _moveVertical(index, cursor, up: false)),
+    );
+  }
+
+  /// 將 text mode 的隱形位置折疊為 gap mode。
+  ///
+  /// - `textOffset <= 0`：與 NumberNode 前方間隙視覺相同 → 前方間隙。
+  /// - `textOffset >= value.length`：與後方間隙視覺相同 → 後方間隙。
+  /// - cursor 不指向 NumberNode（結構變動後的防禦）→ 降級為 gap mode。
+  CursorPosition _normalize(TreeIndex index, CursorPosition cursor) {
+    final textOffset = cursor.textOffset;
+    if (textOffset == null) {
+      return cursor;
+    }
+
+    final sequence = index.findSequence(cursor.sequenceId);
+    if (sequence == null || cursor.nodeOffset >= sequence.children.length) {
+      return cursor.copyWith(clearTextOffset: true);
+    }
+
+    final node = sequence.children[cursor.nodeOffset];
+    if (node is! NumberNode || node.value.isEmpty) {
+      return cursor.copyWith(clearTextOffset: true);
+    }
+
+    if (textOffset <= 0) {
+      return cursor.copyWith(clearTextOffset: true);
+    }
+    if (textOffset >= node.value.length) {
+      return CursorPosition(
+        sequenceId: cursor.sequenceId,
+        nodeOffset: cursor.nodeOffset + 1,
+      );
+    }
+    return cursor;
   }
 
   // ---- Left ---------------------------------------------------------------
@@ -233,7 +280,9 @@ class ExpressionNavigator {
   /// 游標由左側（從 node 後方）進入一個相鄰 node。
   /// 游標向右移動遇到相鄰 node 時的處理。
   ///
-  /// - NumberNode：進入文字開頭（text mode，offset 0）。
+  /// - NumberNode：進入第一、二字符間（text offset 1）。offset 0 與前方間隙
+  ///   視覺相同（隱形步），故直接落在第一個可見的內部位置；單字符 number 的
+  ///   offset 1 會由 [_normalize] 折疊為後方間隙（同樣可見）。
   /// - 其他 composite node：進入「第一個」可編輯 child sequence 的開頭。
   /// - 其他 leaf node（Operator / Constant）：跨越至 node 後方間隙。
   CursorPosition _enterNodeFromLeft(
@@ -242,11 +291,14 @@ class ExpressionNavigator {
     int nodeIndex,
   ) {
     if (node is NumberNode) {
-      // NumberNode：進入文字開頭。
+      if (node.value.isEmpty) {
+        // 空 NumberNode 無內部位置：跨越至後方間隙。
+        return CursorPosition(sequenceId: current.id, nodeOffset: nodeIndex + 1);
+      }
       return CursorPosition(
         sequenceId: current.id,
         nodeOffset: nodeIndex,
-        textOffset: 0,
+        textOffset: 1,
       );
     }
 
@@ -265,7 +317,9 @@ class ExpressionNavigator {
 
   /// 游標向左移動遇到相鄰 node 時的處理。
   ///
-  /// - NumberNode：進入文字末端（text mode）。
+  /// - NumberNode：進入倒數第一、二字符間（text offset len-1）。offset len 與
+  ///   後方間隙視覺相同（隱形步），故直接落在最後一個可見的內部位置；單字符
+  ///   number 的 offset 0 會由 [_normalize] 折疊為前方間隙（同樣可見）。
   /// - 其他 composite node：進入「最後一個」可編輯 child sequence 末端。
   /// - 其他 leaf node（Operator / Constant）：跨越至 node 前方間隙。
   CursorPosition _enterNodeFromRight(
@@ -274,11 +328,14 @@ class ExpressionNavigator {
     int nodeIndex,
   ) {
     if (node is NumberNode) {
-      // NumberNode：進入文字末端。
+      if (node.value.isEmpty) {
+        // 空 NumberNode 無內部位置：跨越至前方間隙。
+        return CursorPosition(sequenceId: current.id, nodeOffset: nodeIndex);
+      }
       return CursorPosition(
         sequenceId: current.id,
         nodeOffset: nodeIndex,
-        textOffset: node.value.length,
+        textOffset: node.value.length - 1,
       );
     }
 
